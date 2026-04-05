@@ -29,6 +29,7 @@ describe('buildOpenRouterModelOptions', () => {
         id: 'openai/gpt-5',
         displayName: 'GPT-5',
         description: 'Flagship reasoning model',
+        contextLength: 131072,
         supportedParameters: ['tools'],
       },
       {
@@ -44,8 +45,24 @@ describe('buildOpenRouterModelOptions', () => {
         value: 'openai/gpt-5',
         label: 'GPT-5',
         description: 'Flagship reasoning model',
+        contextLength: 131072,
       },
     ])
+  })
+})
+
+describe('model option formatting', () => {
+  test('formats context lengths and compact display parts', async () => {
+    const {
+      formatContextLengthDisplay,
+      formatModelOptionDisplayParts,
+    } = await import(`./modelOptions.js?format-parts=${Date.now()}`)
+
+    expect(formatContextLengthDisplay(131072)).toBe('128k')
+    expect(formatModelOptionDisplayParts({ label: 'GPT-5', contextLength: 131072 })).toEqual({
+      label: 'GPT-5',
+      badge: '128k',
+    })
   })
 })
 

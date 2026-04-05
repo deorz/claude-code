@@ -33,6 +33,7 @@ import {
 import {
   getFallbackModelOptions,
   getModelOptions,
+  formatModelOptionDisplayParts,
   type ModelOption,
 } from '../utils/model/modelOptions.js'
 import {
@@ -59,6 +60,7 @@ export type Props = {
 
 type SelectOption = ModelOption & {
   value: string
+  label: React.ReactNode
 }
 
 const NO_PREFERENCE = '__NO_PREFERENCE__'
@@ -85,7 +87,7 @@ export function ModelPicker({
   const [effort, setEffort] = useState<EffortLevel | undefined>(
     effortValue !== undefined ? convertEffortValueToLevel(effortValue) : undefined,
   )
-  const [selectOptions, setSelectOptions] = useState<SelectOption[]>([])
+  const [modelOptions, setModelOptions] = useState<ModelOption[]>([])
   const [loadError, setLoadError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
@@ -99,7 +101,7 @@ export function ModelPicker({
           return
         }
 
-        setSelectOptions(options.map(toSelectOption))
+        setModelOptions(options)
         setLoadError(null)
         setIsLoading(false)
       })
@@ -108,7 +110,7 @@ export function ModelPicker({
           return
         }
 
-        setSelectOptions(getFallbackModelOptions().map(toSelectOption))
+        setModelOptions(getFallbackModelOptions())
         setLoadError(error instanceof Error ? error.message : String(error))
         setIsLoading(false)
       })
@@ -117,6 +119,11 @@ export function ModelPicker({
       cancelled = true
     }
   }, [])
+
+  const selectOptions = useMemo(
+    () => modelOptions.map(option => toSelectOption(option)),
+    [modelOptions],
+  )
 
   const optionsWithInitial = useMemo(() => {
     if (isLoading || initial === null) {
@@ -131,7 +138,11 @@ export function ModelPicker({
       ...selectOptions,
       {
         value: initial,
-        label: modelDisplayString(initial),
+        label: renderModelOptionLabel(
+          formatModelOptionDisplayParts({
+            label: modelDisplayString(initial),
+          }),
+        ),
         description: 'Current model',
       },
     ]
@@ -148,9 +159,9 @@ export function ModelPicker({
   const visibleCount = Math.min(10, optionsWithInitial.length)
   const hiddenCount = Math.max(0, optionsWithInitial.length - visibleCount)
 
-  const focusedModelName = optionsWithInitial.find(
-    option => option.value === focusedValue,
-  )?.label
+  const focusedModelName =
+    modelOptions.find(option => option.value === focusedValue)?.label ??
+    (focusedValue ? modelDisplayString(focusedValue) : undefined)
   const focusedModel = resolveOptionModel(focusedValue)
   const focusedSupportsEffort = focusedModel
     ? modelSupportsEffort(focusedModel)
@@ -357,11 +368,31 @@ export function ModelPicker({
   return <Pane color="permission">{content}</Pane>
 }
 
-function toSelectOption(option: ModelOption): SelectOption {
+function toSelectOption(
+  option: ModelOption,
+): SelectOption {
+  const displayParts = formatModelOptionDisplayParts(option)
   return {
     ...option,
     value: option.value === null ? NO_PREFERENCE : option.value,
+    label: renderModelOptionLabel(displayParts),
+    description: option.description,
   }
+}
+
+export function renderModelOptionLabel(
+  displayParts: { label: string; badge?: string },
+): React.ReactNode {
+  if (displayParts.badge === undefined) {
+    return displayParts.label
+  }
+
+  return (
+    <>
+      <Text>{displayParts.label}</Text>
+      <Text dimColor> · {displayParts.badge}</Text>
+    </>
+  )
 }
 
 function resolveOptionModel(value?: string): string | undefined {

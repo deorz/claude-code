@@ -10,7 +10,33 @@ export type ModelOption = {
   value: string | null
   label: string
   description: string
+  contextLength?: number
   descriptionForModel?: string
+}
+
+export type ModelOptionDisplayParts = {
+  label: string
+  badge?: string
+}
+
+export function formatContextLengthDisplay(contextLength: number): string {
+  if (contextLength >= 1_000_000) {
+    return `${Math.round(contextLength / 1_000_000)}M`
+  }
+
+  return `${Math.round(contextLength / 1024)}k`
+}
+
+export function formatModelOptionDisplayParts(
+  option: Pick<ModelOption, 'label' | 'contextLength'>,
+): ModelOptionDisplayParts {
+  return {
+    label: option.label,
+    badge:
+      option.contextLength === undefined
+        ? undefined
+      : formatContextLengthDisplay(option.contextLength),
+  }
 }
 
 function getDefaultOption(): ModelOption {
@@ -31,6 +57,7 @@ export function buildOpenRouterModelOptions(
       value: entry.id,
       label: entry.displayName,
       description: entry.description ?? entry.id,
+      contextLength: entry.contextLength,
     }))
 }
 
