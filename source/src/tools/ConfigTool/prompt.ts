@@ -1,5 +1,4 @@
 import { feature } from 'bun:bundle'
-import { getModelOptions } from '../../utils/model/modelOptions.js'
 import { isVoiceGrowthBookEnabled } from '../../voice/voiceModeEnabled.js'
 import {
   getOptionsForSetting,
@@ -77,17 +76,6 @@ ${modelSection}
 }
 
 function generateModelSection(): string {
-  try {
-    const options = getModelOptions()
-    const lines = options.map(o => {
-      const value = o.value === null ? 'null/"default"' : `"${o.value}"`
-      return `  - ${value}: ${o.descriptionForModel ?? o.description}`
-    })
-    return `## Model
-- model - Override the default model. Available options:
-${lines.join('\n')}`
-  } catch {
-    return `## Model
+  return `## Model
 - model - Override the default model (sonnet, opus, haiku, best, or full model ID)`
-  }
 }

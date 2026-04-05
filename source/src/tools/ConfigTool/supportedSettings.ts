@@ -5,7 +5,6 @@ import {
   NOTIFICATION_CHANNELS,
   TEAMMATE_MODES,
 } from '../../utils/configConstants.js'
-import { getModelOptions } from '../../utils/model/modelOptions.js'
 import { validateModel } from '../../utils/model/validateModel.js'
 import { THEME_NAMES, THEME_SETTINGS } from '../../utils/theme.js'
 
@@ -92,15 +91,6 @@ export const SUPPORTED_SETTINGS: Record<string, SettingConfig> = {
     type: 'string',
     description: 'Override the default model',
     appStateKey: 'mainLoopModel',
-    getOptions: () => {
-      try {
-        return getModelOptions()
-          .filter(o => o.value !== null)
-          .map(o => o.value as string)
-      } catch {
-        return ['sonnet', 'opus', 'haiku']
-      }
-    },
     validateOnWrite: v => validateModel(String(v)),
     formatOnRead: v => (v === null ? 'default' : v),
   },

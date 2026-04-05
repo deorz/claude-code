@@ -15,6 +15,7 @@ import { getSmallFastModel } from 'src/utils/model/model.js'
 import {
   getAPIProvider,
   isFirstPartyAnthropicBaseUrl,
+  isOpenRouterCompatibleEndpoint,
 } from 'src/utils/model/providers.js'
 import { getProxyFetchOptions } from 'src/utils/proxy.js'
 import {
@@ -28,6 +29,50 @@ import {
   getVertexRegionForModel,
   isEnvTruthy,
 } from '../../utils/envUtils.js'
+
+export function getOpenRouterCompatibleBaseUrl(): string {
+  return (
+    process.env.OPENROUTER_ANTHROPIC_BASE_URL ||
+    (process.env.OPENROUTER_API_KEY ||
+    process.env.OPENROUTER_DEFAULT_MODEL ||
+    process.env.OPENROUTER_HTTP_REFERER ||
+    process.env.OPENROUTER_X_TITLE
+      ? 'https://openrouter.ai/api'
+      : process.env.ANTHROPIC_BASE_URL) ||
+    'https://openrouter.ai/api'
+  )
+}
+
+export function getResolvedAnthropicBaseUrl(): string {
+  return process.env.USER_TYPE === 'ant' && isEnvTruthy(process.env.USE_STAGING_OAUTH)
+    ? getOauthConfig().BASE_API_URL
+    : getOpenRouterCompatibleBaseUrl()
+}
+
+export function getOpenRouterCompatibleHeaders(): Record<string, string> {
+  let baseUrl: URL
+  try {
+    baseUrl = new URL(getResolvedAnthropicBaseUrl())
+  } catch {
+    return {}
+  }
+
+  if (
+    baseUrl.host !== 'openrouter.ai' ||
+    !baseUrl.pathname.startsWith('/api')
+  ) {
+    return {}
+  }
+
+  return {
+    ...(process.env.OPENROUTER_HTTP_REFERER
+      ? { 'HTTP-Referer': process.env.OPENROUTER_HTTP_REFERER }
+      : {}),
+    ...(process.env.OPENROUTER_X_TITLE
+      ? { 'X-Title': process.env.OPENROUTER_X_TITLE }
+      : {}),
+  }
+}
 
 /**
  * Environment variables for different client types:
@@ -98,6 +143,7 @@ export async function getAnthropicClient({
   fetchOverride?: ClientOptions['fetch']
   source?: string
 }): Promise<Anthropic> {
+  const openRouterCompatibleEndpoint = isOpenRouterCompatibleEndpoint()
   const containerId = process.env.CLAUDE_CODE_CONTAINER_ID
   const remoteSessionId = process.env.CLAUDE_CODE_REMOTE_SESSION_ID
   const clientApp = process.env.CLAUDE_AGENT_SDK_CLIENT_APP
@@ -128,11 +174,13 @@ export async function getAnthropicClient({
     defaultHeaders['x-anthropic-additional-protection'] = 'true'
   }
 
-  logForDebugging('[API:auth] OAuth token check starting')
-  await checkAndRefreshOAuthTokenIfNeeded()
-  logForDebugging('[API:auth] OAuth token check complete')
+  if (!openRouterCompatibleEndpoint) {
+    logForDebugging('[API:auth] OAuth token check starting')
+    await checkAndRefreshOAuthTokenIfNeeded()
+    logForDebugging('[API:auth] OAuth token check complete')
+  }
 
-  if (!isClaudeAISubscriber()) {
+  if (!openRouterCompatibleEndpoint && !isClaudeAISubscriber()) {
     await configureApiKeyHeaders(defaultHeaders, getIsNonInteractiveSession())
   }
 
@@ -299,15 +347,17 @@ export async function getAnthropicClient({
 
   // Determine authentication method based on available tokens
   const clientConfig: ConstructorParameters<typeof Anthropic>[0] = {
-    apiKey: isClaudeAISubscriber() ? null : apiKey || getAnthropicApiKey(),
-    authToken: isClaudeAISubscriber()
-      ? getClaudeAIOAuthTokens()?.accessToken
-      : undefined,
-    // Set baseURL from OAuth config when using staging OAuth
-    ...(process.env.USER_TYPE === 'ant' &&
-    isEnvTruthy(process.env.USE_STAGING_OAUTH)
-      ? { baseURL: getOauthConfig().BASE_API_URL }
-      : {}),
+    apiKey: openRouterCompatibleEndpoint
+      ? apiKey || getAnthropicApiKey()
+      : isClaudeAISubscriber()
+        ? null
+        : apiKey || getAnthropicApiKey(),
+    authToken: openRouterCompatibleEndpoint
+      ? undefined
+      : isClaudeAISubscriber()
+        ? getClaudeAIOAuthTokens()?.accessToken
+        : undefined,
+    baseURL: getResolvedAnthropicBaseUrl(),
     ...ARGS,
     ...(isDebugToStdErr() && { logger: createStderrLogger() }),
   }
@@ -319,6 +369,9 @@ async function configureApiKeyHeaders(
   headers: Record<string, string>,
   isNonInteractiveSession: boolean,
 ): Promise<void> {
+  if (isOpenRouterCompatibleEndpoint()) {
+    return
+  }
   const token =
     process.env.ANTHROPIC_AUTH_TOKEN ||
     (await getApiKeyFromApiKeyHelper(isNonInteractiveSession))
@@ -328,7 +381,7 @@ async function configureApiKeyHeaders(
 }
 
 function getCustomHeaders(): Record<string, string> {
-  const customHeaders: Record<string, string> = {}
+  const customHeaders: Record<string, string> = getOpenRouterCompatibleHeaders()
   const customHeadersEnv = process.env.ANTHROPIC_CUSTOM_HEADERS
 
   if (!customHeadersEnv) return customHeaders

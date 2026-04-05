@@ -7,7 +7,7 @@ import { getCwd } from './cwd.js';
 import { relative } from 'path';
 import { formatNumber } from './format.js';
 import type { getGlobalConfig } from './config.js';
-import { getAnthropicApiKeyWithSource, getApiKeyFromConfigOrMacOSKeychain, getAuthTokenSource, isClaudeAISubscriber } from './auth.js';
+import { getAnthropicApiKeyWithSource, getApiKeyFromConfigOrMacOSKeychain, getAuthTokenSource, isClaudeAISubscriber, isEnvApiKeySource } from './auth.js';
 import type { AgentDefinitionsResult } from '../tools/AgentTool/loadAgentsDir.js';
 import { getAgentDescriptionsTotalTokens, AGENT_DESCRIPTIONS_THRESHOLD } from './statusNoticeHelpers.js';
 import { isSupportedJetBrainsTerminal, toIDEDisplayName, getTerminalIdeType } from './ide.js';
@@ -78,7 +78,7 @@ const apiKeyConflictNotice: StatusNoticeDefinition = {
     } = getAnthropicApiKeyWithSource({
       skipRetrievingKeyFromApiKeyHelper: true
     });
-    return !!getApiKeyFromConfigOrMacOSKeychain() && (apiKeySource === 'ANTHROPIC_API_KEY' || apiKeySource === 'apiKeyHelper');
+    return !!getApiKeyFromConfigOrMacOSKeychain() && (isEnvApiKeySource(apiKeySource) || apiKeySource === 'apiKeyHelper');
   },
   render: () => {
     const {
@@ -127,7 +127,7 @@ const bothAuthMethodsNotice: StatusNoticeDefinition = {
             · Trying to use{' '}
             {authTokenInfo.source === 'claude.ai' ? 'claude.ai' : authTokenInfo.source}
             ?{' '}
-            {apiKeySource === 'ANTHROPIC_API_KEY' ? 'Unset the ANTHROPIC_API_KEY environment variable, or claude /logout then say "No" to the API key approval before login.' : apiKeySource === 'apiKeyHelper' ? 'Unset the apiKeyHelper setting.' : 'claude /logout'}
+            {isEnvApiKeySource(apiKeySource) ? `Unset the ${apiKeySource} environment variable, or claude /logout then say "No" to the API key approval before login.` : apiKeySource === 'apiKeyHelper' ? 'Unset the apiKeyHelper setting.' : 'claude /logout'}
           </Text>
           <Text color="warning">
             · Trying to use {apiKeySource}?{' '}

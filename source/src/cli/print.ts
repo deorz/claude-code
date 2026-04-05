@@ -270,7 +270,6 @@ import {
   modelDisplayString,
   parseUserSpecifiedModel,
 } from 'src/utils/model/model.js'
-import { getModelOptions } from 'src/utils/model/modelOptions.js'
 import {
   modelSupportsEffort,
   modelSupportsMaxEffort,
@@ -1191,32 +1190,7 @@ function runHeadlessStreaming(
     })
   }
 
-  const modelOptions = getModelOptions()
-  const modelInfos = modelOptions.map(option => {
-    const modelId = option.value === null ? 'default' : option.value
-    const resolvedModel =
-      modelId === 'default'
-        ? getDefaultMainLoopModel()
-        : parseUserSpecifiedModel(modelId)
-    const hasEffort = modelSupportsEffort(resolvedModel)
-    const hasAdaptiveThinking = modelSupportsAdaptiveThinking(resolvedModel)
-    const hasFastMode = isFastModeSupportedByModel(option.value)
-    const hasAutoMode = modelSupportsAutoMode(resolvedModel)
-    return {
-      value: modelId,
-      displayName: option.label,
-      description: option.description,
-      ...(hasEffort && {
-        supportsEffort: true,
-        supportedEffortLevels: modelSupportsMaxEffort(resolvedModel)
-          ? [...EFFORT_LEVELS]
-          : EFFORT_LEVELS.filter(l => l !== 'max'),
-      }),
-      ...(hasAdaptiveThinking && { supportsAdaptiveThinking: true }),
-      ...(hasFastMode && { supportsFastMode: true }),
-      ...(hasAutoMode && { supportsAutoMode: true }),
-    }
-  })
+  const modelInfos: ModelInfo[] = []
   let activeUserSpecifiedModel = options.userSpecifiedModel
 
   function injectModelSwitchBreadcrumbs(

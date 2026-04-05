@@ -10,7 +10,10 @@ import {
   logEvent,
 } from 'src/services/analytics/index.js'
 import { getModelStrings } from 'src/utils/model/modelStrings.js'
-import { getAPIProvider } from 'src/utils/model/providers.js'
+import {
+  getAPIProvider,
+  isOpenRouterCompatibleEndpoint,
+} from 'src/utils/model/providers.js'
 import {
   getIsNonInteractiveSession,
   preferThirdPartyAuthentication,
@@ -76,6 +79,9 @@ import {
 import { sleep } from './sleep.js'
 import { jsonParse } from './slowOperations.js'
 import { clearToolSchemaCache } from './toolSchemaCache.js'
+import {
+  getCompatibleApiKeyEnvWithSource,
+} from './apiKeyEnv.js'
 
 /** Default TTL for API key helper cache in milliseconds (5 minutes) */
 const DEFAULT_API_KEY_HELPER_TTL = 5 * 60 * 1000
@@ -100,6 +106,10 @@ function isManagedOAuthContext(): boolean {
 export function isAnthropicAuthEnabled(): boolean {
   // --bare: API-key-only, never OAuth.
   if (isBareMode()) return false
+
+  // OpenRouter is the new first-party default, so we should not surface the
+  // Anthropic OAuth/login chooser on startup when that path is active.
+  if (isOpenRouterCompatibleEndpoint()) return false
 
   // `claude ssh` remote: ANTHROPIC_UNIX_SOCKET tunnels API calls through a
   // local auth-injecting proxy. The launcher sets CLAUDE_CODE_OAUTH_TOKEN as a
@@ -131,7 +141,7 @@ export function isAnthropicAuthEnabled(): boolean {
     skipRetrievingKeyFromApiKeyHelper: true,
   })
   const hasExternalApiKey =
-    apiKeySource === 'ANTHROPIC_API_KEY' || apiKeySource === 'apiKeyHelper'
+    isEnvApiKeySource(apiKeySource) || apiKeySource === 'apiKeyHelper'
 
   // Disable Anthropic auth if:
   // 1. Using 3rd party services (Bedrock/Vertex/Foundry)
@@ -206,10 +216,17 @@ export function getAuthTokenSource() {
 }
 
 export type ApiKeySource =
+  | 'OPENROUTER_API_KEY'
   | 'ANTHROPIC_API_KEY'
   | 'apiKeyHelper'
   | '/login managed key'
   | 'none'
+
+export function isEnvApiKeySource(
+  source: ApiKeySource,
+): source is 'OPENROUTER_API_KEY' | 'ANTHROPIC_API_KEY' {
+  return source === 'OPENROUTER_API_KEY' || source === 'ANTHROPIC_API_KEY'
+}
 
 export function getAnthropicApiKey(): null | string {
   const { key } = getAnthropicApiKeyWithSource()
@@ -229,12 +246,17 @@ export function getAnthropicApiKeyWithSource(
   key: null | string
   source: ApiKeySource
 } {
+  const { key: compatibleApiKeyEnv, source: compatibleApiKeySource } =
+    getCompatibleApiKeyEnvWithSource()
   // --bare: hermetic auth. Only ANTHROPIC_API_KEY env or apiKeyHelper from
   // the --settings flag. Never touches keychain, config file, or approval
   // lists. 3P (Bedrock/Vertex/Foundry) uses provider creds, not this path.
   if (isBareMode()) {
-    if (process.env.ANTHROPIC_API_KEY) {
-      return { key: process.env.ANTHROPIC_API_KEY, source: 'ANTHROPIC_API_KEY' }
+    if (compatibleApiKeyEnv && compatibleApiKeySource) {
+      return {
+        key: compatibleApiKeyEnv,
+        source: compatibleApiKeySource,
+      }
     }
     if (getConfiguredApiKeyHelper()) {
       return {
@@ -251,14 +273,14 @@ export function getAnthropicApiKeyWithSource(
   // https://anthropic.slack.com/archives/C08428WSLKV/p1747331773214779
   const apiKeyEnv = isRunningOnHomespace()
     ? undefined
-    : process.env.ANTHROPIC_API_KEY
+    : compatibleApiKeyEnv
 
   // Always check for direct environment variable when the user ran claude --print.
   // This is useful for CI, etc.
   if (preferThirdPartyAuthentication() && apiKeyEnv) {
     return {
       key: apiKeyEnv,
-      source: 'ANTHROPIC_API_KEY',
+      source: compatibleApiKeySource ?? 'ANTHROPIC_API_KEY',
     }
   }
 
@@ -268,7 +290,7 @@ export function getAnthropicApiKeyWithSource(
     if (apiKeyFromFd) {
       return {
         key: apiKeyFromFd,
-        source: 'ANTHROPIC_API_KEY',
+        source: compatibleApiKeySource ?? 'ANTHROPIC_API_KEY',
       }
     }
 
@@ -285,7 +307,7 @@ export function getAnthropicApiKeyWithSource(
     if (apiKeyEnv) {
       return {
         key: apiKeyEnv,
-        source: 'ANTHROPIC_API_KEY',
+        source: compatibleApiKeySource ?? 'ANTHROPIC_API_KEY',
       }
     }
 
@@ -304,7 +326,7 @@ export function getAnthropicApiKeyWithSource(
   ) {
     return {
       key: apiKeyEnv,
-      source: 'ANTHROPIC_API_KEY',
+      source: compatibleApiKeySource ?? 'ANTHROPIC_API_KEY',
     }
   }
 
@@ -313,7 +335,7 @@ export function getAnthropicApiKeyWithSource(
   if (apiKeyFromFd) {
     return {
       key: apiKeyFromFd,
-      source: 'ANTHROPIC_API_KEY',
+      source: compatibleApiKeySource ?? 'ANTHROPIC_API_KEY',
     }
   }
 
