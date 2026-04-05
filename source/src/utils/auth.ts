@@ -262,8 +262,14 @@ export function getAnthropicApiKeyWithSource(
   key: null | string
   source: ApiKeySource
 } {
+  const config = getGlobalConfig()
   const { key: compatibleApiKeyEnv, source: compatibleApiKeySource } =
     getCompatibleApiKeyEnvWithSource()
+
+  if (isOpenRouterCompatibleEndpoint() && config.primaryApiKey) {
+    return { key: config.primaryApiKey, source: '/login managed key' }
+  }
+
   // --bare: hermetic auth. Only ANTHROPIC_API_KEY env or apiKeyHelper from
   // the --settings flag. Never touches keychain, config file, or approval
   // lists. 3P (Bedrock/Vertex/Foundry) uses provider creds, not this path.

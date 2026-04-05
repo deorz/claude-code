@@ -30,12 +30,14 @@ export function OpenRouterApiKeyPrompt({
 
       try {
         process.env.OPENROUTER_API_KEY = nextApiKey
+        process.env.ANTHROPIC_API_KEY = nextApiKey
         saveGlobalConfig(current => ({
           ...current,
           primaryApiKey: nextApiKey,
           env: {
             ...current.env,
             OPENROUTER_API_KEY: nextApiKey,
+            ANTHROPIC_API_KEY: nextApiKey,
           },
         }))
         onDone(true)
