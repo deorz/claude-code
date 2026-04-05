@@ -240,6 +240,22 @@ export function hasAnthropicApiKeyAuth(): boolean {
   return key !== null && source !== 'none'
 }
 
+export function shouldPromptForOpenRouterApiKey(): boolean {
+  if (!isOpenRouterCompatibleEndpoint()) {
+    return false
+  }
+
+  const { key, source } = getAnthropicApiKeyWithSource({
+    skipRetrievingKeyFromApiKeyHelper: true,
+  })
+
+  if (source === 'apiKeyHelper') {
+    return false
+  }
+
+  return key === null
+}
+
 export function getAnthropicApiKeyWithSource(
   opts: { skipRetrievingKeyFromApiKeyHelper?: boolean } = {},
 ): {

@@ -52,6 +52,7 @@ function mockClientDeps(options?: {
   }))
   mock.module('src/utils/model/providers.js', () => ({
     getAPIProvider: () => 'firstParty',
+    getOpenRouterCompatibleBaseUrl: () => 'https://openrouter.ai/api',
     isFirstPartyAnthropicBaseUrl: () => true,
     isOpenRouterCompatibleEndpoint: () => true,
   }))
@@ -84,13 +85,14 @@ function mockClientDeps(options?: {
 describe('OpenRouter compatible transport defaults', () => {
   test('uses the OpenRouter anthropic-compatible endpoint by default', async () => {
     delete process.env.ANTHROPIC_BASE_URL
-    delete process.env.OPENROUTER_ANTHROPIC_BASE_URL
+    delete process.env.OPENROUTER_BASE_URL
+    delete process.env.OPENROUTER_API_KEY
+    delete process.env.OPENROUTER_DEFAULT_MODEL
 
     mockClientDeps()
 
     const {
       getOpenRouterCompatibleBaseUrl,
-      getOpenRouterCompatibleHeaders,
       getResolvedAnthropicBaseUrl,
     } = await import(
       `./client.js?base-url=${Date.now()}`
@@ -102,7 +104,6 @@ describe('OpenRouter compatible transport defaults', () => {
     expect(getResolvedAnthropicBaseUrl()).toBe(
       'https://openrouter.ai/api',
     )
-    expect(getOpenRouterCompatibleHeaders()).toEqual({})
   })
 
   test('uses the staging OAuth base URL when ant staging auth is enabled', async () => {
@@ -114,37 +115,13 @@ describe('OpenRouter compatible transport defaults', () => {
       oauthBaseUrl: 'https://api-staging.anthropic.com',
     })
 
-    const { getResolvedAnthropicBaseUrl, getOpenRouterCompatibleHeaders } =
-      await import(`./client.js?staging=${Date.now()}`)
+    const { getResolvedAnthropicBaseUrl } = await import(
+      `./client.js?staging=${Date.now()}`
+    )
 
     expect(getResolvedAnthropicBaseUrl()).toBe(
       'https://api-staging.anthropic.com',
     )
-    expect(getOpenRouterCompatibleHeaders()).toEqual({})
-  })
-
-  test('adds OpenRouter headers only for the OpenRouter-compatible transport', async () => {
-    process.env.OPENROUTER_HTTP_REFERER = 'https://example.com/app'
-    process.env.OPENROUTER_X_TITLE = 'Claude Code'
-
-    mockClientDeps()
-
-    const { getOpenRouterCompatibleHeaders } = await import(
-      `./client.js?headers=${Date.now()}`
-    )
-
-    expect(getOpenRouterCompatibleHeaders()).toEqual({
-      'HTTP-Referer': 'https://example.com/app',
-      'X-Title': 'Claude Code',
-    })
-
-    delete process.env.OPENROUTER_HTTP_REFERER
-    delete process.env.OPENROUTER_X_TITLE
-    delete process.env.OPENROUTER_API_KEY
-    delete process.env.OPENROUTER_ANTHROPIC_BASE_URL
-    delete process.env.OPENROUTER_DEFAULT_MODEL
-    process.env.ANTHROPIC_BASE_URL = 'https://api.anthropic.com/v1'
-    expect(getOpenRouterCompatibleHeaders()).toEqual({})
   })
 
   test('prefers ANTHROPIC_API_KEY on the ant staging oauth path', async () => {

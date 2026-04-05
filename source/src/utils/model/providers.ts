@@ -10,13 +10,13 @@ export function getAPIProviderForStatsig(): AnalyticsMetadata_I_VERIFIED_THIS_IS
   return getAPIProvider() as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS
 }
 
-function hasExplicitOpenRouterConfig(): boolean {
-  return !!(
-    process.env.OPENROUTER_API_KEY ||
-    process.env.OPENROUTER_ANTHROPIC_BASE_URL ||
-    process.env.OPENROUTER_DEFAULT_MODEL ||
-    process.env.OPENROUTER_HTTP_REFERER ||
-    process.env.OPENROUTER_X_TITLE
+export function getOpenRouterCompatibleBaseUrl(): string {
+  return (
+    process.env.OPENROUTER_BASE_URL ||
+    (process.env.OPENROUTER_API_KEY || process.env.OPENROUTER_DEFAULT_MODEL
+      ? 'https://openrouter.ai/api'
+      : process.env.ANTHROPIC_BASE_URL) ||
+    'https://openrouter.ai/api'
   )
 }
 
@@ -26,6 +26,10 @@ function hasExplicitOpenRouterConfig(): boolean {
  * (or api-staging.anthropic.com for ant users).
  */
 export function isFirstPartyAnthropicBaseUrl(): boolean {
+  if (isOpenRouterCompatibleEndpoint()) {
+    return false
+  }
+
   const baseUrl = process.env.ANTHROPIC_BASE_URL
   if (!baseUrl) {
     return true
@@ -44,8 +48,7 @@ export function isFirstPartyAnthropicBaseUrl(): boolean {
 }
 
 export function isOpenRouterAnthropicBaseUrl(): boolean {
-  const baseUrl =
-    process.env.OPENROUTER_ANTHROPIC_BASE_URL || process.env.ANTHROPIC_BASE_URL
+  const baseUrl = getOpenRouterCompatibleBaseUrl()
   if (!baseUrl) {
     return false
   }
@@ -77,15 +80,8 @@ export function isOpenRouterCompatibleEndpoint(): boolean {
     return false
   }
 
-  const baseUrl =
-    process.env.OPENROUTER_ANTHROPIC_BASE_URL ||
-    (hasExplicitOpenRouterConfig()
-      ? 'https://openrouter.ai/api'
-      : process.env.ANTHROPIC_BASE_URL) ||
-    'https://openrouter.ai/api'
-
   try {
-    const url = new URL(baseUrl)
+    const url = new URL(getOpenRouterCompatibleBaseUrl())
     return (
       url.host === 'openrouter.ai' &&
       url.pathname.startsWith('/api')

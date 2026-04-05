@@ -15,6 +15,7 @@ import { getSmallFastModel } from 'src/utils/model/model.js'
 import {
   getAPIProvider,
   isFirstPartyAnthropicBaseUrl,
+  getOpenRouterCompatibleBaseUrl as getOpenRouterCompatibleBaseUrlFromProviders,
   isOpenRouterCompatibleEndpoint,
 } from 'src/utils/model/providers.js'
 import { getProxyFetchOptions } from 'src/utils/proxy.js'
@@ -30,48 +31,13 @@ import {
   isEnvTruthy,
 } from '../../utils/envUtils.js'
 
-export function getOpenRouterCompatibleBaseUrl(): string {
-  return (
-    process.env.OPENROUTER_ANTHROPIC_BASE_URL ||
-    (process.env.OPENROUTER_API_KEY ||
-    process.env.OPENROUTER_DEFAULT_MODEL ||
-    process.env.OPENROUTER_HTTP_REFERER ||
-    process.env.OPENROUTER_X_TITLE
-      ? 'https://openrouter.ai/api'
-      : process.env.ANTHROPIC_BASE_URL) ||
-    'https://openrouter.ai/api'
-  )
-}
+export const getOpenRouterCompatibleBaseUrl =
+  getOpenRouterCompatibleBaseUrlFromProviders
 
 export function getResolvedAnthropicBaseUrl(): string {
   return process.env.USER_TYPE === 'ant' && isEnvTruthy(process.env.USE_STAGING_OAUTH)
     ? getOauthConfig().BASE_API_URL
-    : getOpenRouterCompatibleBaseUrl()
-}
-
-export function getOpenRouterCompatibleHeaders(): Record<string, string> {
-  let baseUrl: URL
-  try {
-    baseUrl = new URL(getResolvedAnthropicBaseUrl())
-  } catch {
-    return {}
-  }
-
-  if (
-    baseUrl.host !== 'openrouter.ai' ||
-    !baseUrl.pathname.startsWith('/api')
-  ) {
-    return {}
-  }
-
-  return {
-    ...(process.env.OPENROUTER_HTTP_REFERER
-      ? { 'HTTP-Referer': process.env.OPENROUTER_HTTP_REFERER }
-      : {}),
-    ...(process.env.OPENROUTER_X_TITLE
-      ? { 'X-Title': process.env.OPENROUTER_X_TITLE }
-      : {}),
-  }
+    : getOpenRouterCompatibleBaseUrlFromProviders()
 }
 
 /**
@@ -381,7 +347,7 @@ async function configureApiKeyHeaders(
 }
 
 function getCustomHeaders(): Record<string, string> {
-  const customHeaders: Record<string, string> = getOpenRouterCompatibleHeaders()
+  const customHeaders: Record<string, string> = {}
   const customHeadersEnv = process.env.ANTHROPIC_CUSTOM_HEADERS
 
   if (!customHeadersEnv) return customHeaders

@@ -102,7 +102,8 @@ describe('OpenRouter defaults', () => {
     })
     process.env.OPENROUTER_API_KEY = 'or-test-key'
     delete process.env.ANTHROPIC_BASE_URL
-    delete process.env.OPENROUTER_ANTHROPIC_BASE_URL
+    delete process.env.OPENROUTER_BASE_URL
+    delete process.env.OPENROUTER_DEFAULT_MODEL
 
     expect(getSmallFastModel()).toBe('openai/gpt-5')
   })
@@ -111,7 +112,8 @@ describe('OpenRouter defaults', () => {
     const { getDefaultMainLoopModel } = await loadModelModule()
     process.env.OPENROUTER_DEFAULT_MODEL = 'openai/gpt-5'
     delete process.env.ANTHROPIC_BASE_URL
-    delete process.env.OPENROUTER_ANTHROPIC_BASE_URL
+    delete process.env.OPENROUTER_BASE_URL
+    delete process.env.OPENROUTER_API_KEY
 
     expect(getDefaultMainLoopModel()).toBe('openai/gpt-5')
   })
@@ -121,7 +123,7 @@ describe('OpenRouter defaults', () => {
     process.env.ANTHROPIC_BASE_URL = 'https://api.anthropic.com/v1'
     delete process.env.OPENROUTER_DEFAULT_MODEL
     delete process.env.OPENROUTER_API_KEY
-    delete process.env.OPENROUTER_ANTHROPIC_BASE_URL
+    delete process.env.OPENROUTER_BASE_URL
 
     expect(getDefaultMainLoopModel()).toBe('claude-sonnet-4-6-20251001')
   })

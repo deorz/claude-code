@@ -44,20 +44,18 @@ Common environment variables:
 export OPENROUTER_API_KEY="or-..."
 
 # Optional: override the compatible endpoint
-export OPENROUTER_ANTHROPIC_BASE_URL="https://openrouter.ai/api"
+export OPENROUTER_BASE_URL="https://openrouter.ai/api"
 
 # Optional: override the default model used by the compatible flow
 export OPENROUTER_DEFAULT_MODEL="openai/gpt-5"
-
-# Optional OpenRouter attribution headers
-export OPENROUTER_HTTP_REFERER="https://example.com"
-export OPENROUTER_X_TITLE="Claude Code Custom Build"
 ```
 
 Compatibility notes:
 
-- `ANTHROPIC_BASE_URL` still overrides the compatible endpoint when set.
+- `OPENROUTER_BASE_URL` is the preferred override for the compatible endpoint.
+- `ANTHROPIC_BASE_URL` is still accepted as a fallback for compatibility.
 - `ANTHROPIC_API_KEY` is still accepted for compatibility, but `OPENROUTER_API_KEY` is preferred on the default OpenRouter-backed path.
+- If no compatible API key is configured, `/login` and first launch prompt for an OpenRouter key and save it locally.
 - `ant` staging OAuth keeps using the Anthropic staging endpoint and does not route through OpenRouter.
 - `/model` now loads model IDs dynamically from OpenRouter instead of using a static Claude-only list.
 

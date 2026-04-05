@@ -42,7 +42,7 @@ describe('isFirstPartyAnthropicBaseUrl', () => {
       './providers.js?openrouter'
     )
 
-    process.env.ANTHROPIC_BASE_URL = 'https://openrouter.ai/api'
+    process.env.OPENROUTER_BASE_URL = 'https://openrouter.ai/api'
 
     expect(isFirstPartyAnthropicBaseUrl()).toBe(false)
   })
@@ -54,7 +54,7 @@ describe('isOpenRouterAnthropicBaseUrl', () => {
       './providers.js?openrouter-helper'
     )
 
-    process.env.ANTHROPIC_BASE_URL = 'https://openrouter.ai/api'
+    process.env.OPENROUTER_BASE_URL = 'https://openrouter.ai/api'
 
     expect(isOpenRouterAnthropicBaseUrl()).toBe(true)
   })
@@ -67,7 +67,9 @@ describe('isOpenRouterCompatibleEndpoint', () => {
     )
 
     delete process.env.ANTHROPIC_BASE_URL
-    delete process.env.OPENROUTER_ANTHROPIC_BASE_URL
+    delete process.env.OPENROUTER_BASE_URL
+    delete process.env.OPENROUTER_API_KEY
+    delete process.env.OPENROUTER_DEFAULT_MODEL
     delete process.env.USER_TYPE
     delete process.env.USE_STAGING_OAUTH
 
