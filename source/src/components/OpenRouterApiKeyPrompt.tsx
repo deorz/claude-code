@@ -1,8 +1,8 @@
 import React, { useCallback, useState } from 'react'
 import { Box, Text } from '../ink.js'
 import { useTerminalSize } from '../hooks/useTerminalSize.js'
-import { saveGlobalConfig } from '../utils/config.js'
 import { logError } from '../utils/log.js'
+import { saveOpenRouterApiKey } from '../utils/openRouterAuth.js'
 import { Dialog } from './design-system/Dialog.js'
 import TextInput from './TextInput.js'
 
@@ -29,17 +29,7 @@ export function OpenRouterApiKeyPrompt({
       }
 
       try {
-        process.env.OPENROUTER_API_KEY = nextApiKey
-        process.env.ANTHROPIC_API_KEY = nextApiKey
-        saveGlobalConfig(current => ({
-          ...current,
-          primaryApiKey: nextApiKey,
-          env: {
-            ...current.env,
-            OPENROUTER_API_KEY: nextApiKey,
-            ANTHROPIC_API_KEY: nextApiKey,
-          },
-        }))
+        await saveOpenRouterApiKey(nextApiKey)
         onDone(true)
       } catch (err) {
         logError(err)

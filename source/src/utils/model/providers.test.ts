@@ -87,6 +87,18 @@ describe('isOpenRouterCompatibleEndpoint', () => {
     expect(isOpenRouterCompatibleEndpoint()).toBe(false)
   })
 
+  test('prefers explicit OpenRouter config over ant staging oauth', async () => {
+    const { isOpenRouterCompatibleEndpoint } = await import(
+      './providers.js?openrouter-staging-explicit'
+    )
+
+    process.env.USER_TYPE = 'ant'
+    process.env.USE_STAGING_OAUTH = '1'
+    process.env.OPENROUTER_API_KEY = 'or-test-key'
+
+    expect(isOpenRouterCompatibleEndpoint()).toBe(true)
+  })
+
   test('prefers OpenRouter when explicit OpenRouter config is present even if ANTHROPIC_BASE_URL is set', async () => {
     const { isOpenRouterCompatibleEndpoint } = await import(
       './providers.js?openrouter-explicit'

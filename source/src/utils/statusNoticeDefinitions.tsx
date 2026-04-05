@@ -8,6 +8,7 @@ import { relative } from 'path';
 import { formatNumber } from './format.js';
 import type { getGlobalConfig } from './config.js';
 import { getAnthropicApiKeyWithSource, getApiKeyFromConfigOrMacOSKeychain, getAuthTokenSource, isClaudeAISubscriber, isEnvApiKeySource } from './auth.js';
+import { isOpenRouterCompatibleEndpoint } from './model/providers.js';
 import type { AgentDefinitionsResult } from '../tools/AgentTool/loadAgentsDir.js';
 import { getAgentDescriptionsTotalTokens, AGENT_DESCRIPTIONS_THRESHOLD } from './statusNoticeHelpers.js';
 import { isSupportedJetBrainsTerminal, toIDEDisplayName, getTerminalIdeType } from './ide.js';
@@ -73,6 +74,9 @@ const apiKeyConflictNotice: StatusNoticeDefinition = {
   id: 'api-key-conflict',
   type: 'warning',
   isActive: () => {
+    if (isOpenRouterCompatibleEndpoint()) {
+      return false
+    }
     const {
       source: apiKeySource
     } = getAnthropicApiKeyWithSource({

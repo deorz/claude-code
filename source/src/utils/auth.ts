@@ -292,6 +292,20 @@ export function getAnthropicApiKeyWithSource(
     ? undefined
     : compatibleApiKeyEnv
 
+  // OpenRouter API keys are explicitly provided by the user for the
+  // OpenRouter-compatible path, so they should not be gated by the Anthropic
+  // custom-key approval flow.
+  if (
+    isOpenRouterCompatibleEndpoint() &&
+    compatibleApiKeySource === 'OPENROUTER_API_KEY' &&
+    apiKeyEnv
+  ) {
+    return {
+      key: apiKeyEnv,
+      source: compatibleApiKeySource,
+    }
+  }
+
   // Always check for direct environment variable when the user ran claude --print.
   // This is useful for CI, etc.
   if (preferThirdPartyAuthentication() && apiKeyEnv) {

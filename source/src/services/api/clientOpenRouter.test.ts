@@ -124,15 +124,15 @@ describe('OpenRouter compatible transport defaults', () => {
     )
   })
 
-  test('prefers ANTHROPIC_API_KEY on the ant staging oauth path', async () => {
+  test('prefers explicit OpenRouter config on the ant staging oauth path', async () => {
     process.env.USER_TYPE = 'ant'
     process.env.USE_STAGING_OAUTH = '1'
     process.env.OPENROUTER_API_KEY = 'or-test-key'
     process.env.ANTHROPIC_API_KEY = 'anthropic-test-key'
 
     expect(getCompatibleApiKeyEnvWithSource()).toEqual({
-      key: 'anthropic-test-key',
-      source: 'ANTHROPIC_API_KEY',
+      key: 'or-test-key',
+      source: 'OPENROUTER_API_KEY',
     })
   })
 

@@ -73,9 +73,15 @@ function isTruthyEnvVar(value: string | undefined): boolean {
 }
 
 export function isOpenRouterCompatibleEndpoint(): boolean {
+  const hasExplicitOpenRouterConfig =
+    !!process.env.OPENROUTER_API_KEY ||
+    !!process.env.OPENROUTER_BASE_URL ||
+    !!process.env.OPENROUTER_DEFAULT_MODEL
+
   if (
     process.env.USER_TYPE === 'ant' &&
-    isTruthyEnvVar(process.env.USE_STAGING_OAUTH)
+    isTruthyEnvVar(process.env.USE_STAGING_OAUTH) &&
+    !hasExplicitOpenRouterConfig
   ) {
     return false
   }
