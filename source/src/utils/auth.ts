@@ -1089,6 +1089,14 @@ export function prefetchAwsCredentialsAndBedRockInfoIfSafe(): void {
 export const getApiKeyFromConfigOrMacOSKeychain = memoize(
   (): { key: string; source: ApiKeySource } | null => {
     if (isBareMode()) return null
+    const config = getGlobalConfig()
+
+    // OpenRouter uses the saved config value as the source of truth so a stale
+    // macOS keychain entry cannot mask the key the user just entered.
+    if (isOpenRouterCompatibleEndpoint() && config.primaryApiKey) {
+      return { key: config.primaryApiKey, source: '/login managed key' }
+    }
+
     // TODO: migrate to SecureStorage
     if (process.platform === 'darwin') {
       // keychainPrefetch.ts fires this read at main.tsx top-level in parallel
@@ -1115,7 +1123,6 @@ export const getApiKeyFromConfigOrMacOSKeychain = memoize(
       }
     }
 
-    const config = getGlobalConfig()
     if (!config.primaryApiKey) {
       return null
     }
