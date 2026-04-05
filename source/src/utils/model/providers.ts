@@ -1,20 +1,23 @@
 import type { AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS } from '../../services/analytics/index.js'
-import { isEnvTruthy } from '../envUtils.js'
 
-export type APIProvider = 'firstParty' | 'bedrock' | 'vertex' | 'foundry'
+export type APIProvider = 'firstParty'
 
 export function getAPIProvider(): APIProvider {
-  return isEnvTruthy(process.env.CLAUDE_CODE_USE_BEDROCK)
-    ? 'bedrock'
-    : isEnvTruthy(process.env.CLAUDE_CODE_USE_VERTEX)
-      ? 'vertex'
-      : isEnvTruthy(process.env.CLAUDE_CODE_USE_FOUNDRY)
-        ? 'foundry'
-        : 'firstParty'
+  return 'firstParty'
 }
 
 export function getAPIProviderForStatsig(): AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS {
   return getAPIProvider() as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS
+}
+
+export function getOpenRouterCompatibleBaseUrl(): string {
+  return (
+    process.env.OPENROUTER_BASE_URL ||
+    (process.env.OPENROUTER_API_KEY || process.env.OPENROUTER_DEFAULT_MODEL
+      ? 'https://openrouter.ai/api'
+      : process.env.ANTHROPIC_BASE_URL) ||
+    'https://openrouter.ai/api'
+  )
 }
 
 /**
@@ -23,10 +26,15 @@ export function getAPIProviderForStatsig(): AnalyticsMetadata_I_VERIFIED_THIS_IS
  * (or api-staging.anthropic.com for ant users).
  */
 export function isFirstPartyAnthropicBaseUrl(): boolean {
+  if (isOpenRouterCompatibleEndpoint()) {
+    return false
+  }
+
   const baseUrl = process.env.ANTHROPIC_BASE_URL
   if (!baseUrl) {
     return true
   }
+
   try {
     const host = new URL(baseUrl).host
     const allowedHosts = ['api.anthropic.com']
@@ -34,6 +42,56 @@ export function isFirstPartyAnthropicBaseUrl(): boolean {
       allowedHosts.push('api-staging.anthropic.com')
     }
     return allowedHosts.includes(host)
+  } catch {
+    return false
+  }
+}
+
+export function isOpenRouterAnthropicBaseUrl(): boolean {
+  const baseUrl = getOpenRouterCompatibleBaseUrl()
+  if (!baseUrl) {
+    return false
+  }
+
+  try {
+    const url = new URL(baseUrl)
+    return (
+      url.host === 'openrouter.ai' &&
+      url.pathname.startsWith('/api')
+    )
+  } catch {
+    return false
+  }
+}
+
+function isTruthyEnvVar(value: string | undefined): boolean {
+  if (!value) {
+    return false
+  }
+
+  return ['1', 'true', 'yes', 'on'].includes(value.toLowerCase().trim())
+}
+
+export function isOpenRouterCompatibleEndpoint(): boolean {
+  const hasExplicitOpenRouterConfig =
+    !!process.env.OPENROUTER_API_KEY ||
+    !!process.env.OPENROUTER_BASE_URL ||
+    !!process.env.OPENROUTER_DEFAULT_MODEL
+
+  if (
+    process.env.USER_TYPE === 'ant' &&
+    isTruthyEnvVar(process.env.USE_STAGING_OAUTH) &&
+    !hasExplicitOpenRouterConfig
+  ) {
+    return false
+  }
+
+  try {
+    const url = new URL(getOpenRouterCompatibleBaseUrl())
+    return (
+      url.host === 'openrouter.ai' &&
+      url.pathname.startsWith('/api')
+    )
   } catch {
     return false
   }

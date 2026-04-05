@@ -15,6 +15,8 @@ import { getSmallFastModel } from 'src/utils/model/model.js'
 import {
   getAPIProvider,
   isFirstPartyAnthropicBaseUrl,
+  getOpenRouterCompatibleBaseUrl as getOpenRouterCompatibleBaseUrlFromProviders,
+  isOpenRouterCompatibleEndpoint,
 } from 'src/utils/model/providers.js'
 import { getProxyFetchOptions } from 'src/utils/proxy.js'
 import {
@@ -28,6 +30,15 @@ import {
   getVertexRegionForModel,
   isEnvTruthy,
 } from '../../utils/envUtils.js'
+
+export const getOpenRouterCompatibleBaseUrl =
+  getOpenRouterCompatibleBaseUrlFromProviders
+
+export function getResolvedAnthropicBaseUrl(): string {
+  return process.env.USER_TYPE === 'ant' && isEnvTruthy(process.env.USE_STAGING_OAUTH)
+    ? getOauthConfig().BASE_API_URL
+    : getOpenRouterCompatibleBaseUrlFromProviders()
+}
 
 /**
  * Environment variables for different client types:
@@ -98,6 +109,7 @@ export async function getAnthropicClient({
   fetchOverride?: ClientOptions['fetch']
   source?: string
 }): Promise<Anthropic> {
+  const openRouterCompatibleEndpoint = isOpenRouterCompatibleEndpoint()
   const containerId = process.env.CLAUDE_CODE_CONTAINER_ID
   const remoteSessionId = process.env.CLAUDE_CODE_REMOTE_SESSION_ID
   const clientApp = process.env.CLAUDE_AGENT_SDK_CLIENT_APP
@@ -128,11 +140,13 @@ export async function getAnthropicClient({
     defaultHeaders['x-anthropic-additional-protection'] = 'true'
   }
 
-  logForDebugging('[API:auth] OAuth token check starting')
-  await checkAndRefreshOAuthTokenIfNeeded()
-  logForDebugging('[API:auth] OAuth token check complete')
+  if (!openRouterCompatibleEndpoint) {
+    logForDebugging('[API:auth] OAuth token check starting')
+    await checkAndRefreshOAuthTokenIfNeeded()
+    logForDebugging('[API:auth] OAuth token check complete')
+  }
 
-  if (!isClaudeAISubscriber()) {
+  if (!openRouterCompatibleEndpoint && !isClaudeAISubscriber()) {
     await configureApiKeyHeaders(defaultHeaders, getIsNonInteractiveSession())
   }
 
@@ -299,15 +313,17 @@ export async function getAnthropicClient({
 
   // Determine authentication method based on available tokens
   const clientConfig: ConstructorParameters<typeof Anthropic>[0] = {
-    apiKey: isClaudeAISubscriber() ? null : apiKey || getAnthropicApiKey(),
-    authToken: isClaudeAISubscriber()
-      ? getClaudeAIOAuthTokens()?.accessToken
-      : undefined,
-    // Set baseURL from OAuth config when using staging OAuth
-    ...(process.env.USER_TYPE === 'ant' &&
-    isEnvTruthy(process.env.USE_STAGING_OAUTH)
-      ? { baseURL: getOauthConfig().BASE_API_URL }
-      : {}),
+    apiKey: openRouterCompatibleEndpoint
+      ? apiKey || getAnthropicApiKey()
+      : isClaudeAISubscriber()
+        ? null
+        : apiKey || getAnthropicApiKey(),
+    authToken: openRouterCompatibleEndpoint
+      ? undefined
+      : isClaudeAISubscriber()
+        ? getClaudeAIOAuthTokens()?.accessToken
+        : undefined,
+    baseURL: getResolvedAnthropicBaseUrl(),
     ...ARGS,
     ...(isDebugToStdErr() && { logger: createStderrLogger() }),
   }
@@ -319,6 +335,9 @@ async function configureApiKeyHeaders(
   headers: Record<string, string>,
   isNonInteractiveSession: boolean,
 ): Promise<void> {
+  if (isOpenRouterCompatibleEndpoint()) {
+    return
+  }
   const token =
     process.env.ANTHROPIC_AUTH_TOKEN ||
     (await getApiKeyFromApiKeyHelper(isNonInteractiveSession))

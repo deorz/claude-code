@@ -33,6 +33,32 @@ First build runs `npm install` for ~80 overlay packages. Subsequent builds skip 
 node dist/cli.js
 ```
 
+### Model Backend
+
+By default, the bundled CLI now uses an OpenRouter-backed Anthropic-compatible endpoint for model selection and inference.
+
+Common environment variables:
+
+```bash
+# Preferred key when using the default OpenRouter-compatible flow
+export OPENROUTER_API_KEY="or-..."
+
+# Optional: override the compatible endpoint
+export OPENROUTER_BASE_URL="https://openrouter.ai/api"
+
+# Optional: override the default model used by the compatible flow
+export OPENROUTER_DEFAULT_MODEL="openai/gpt-5"
+```
+
+Compatibility notes:
+
+- `OPENROUTER_BASE_URL` is the preferred override for the compatible endpoint.
+- `ANTHROPIC_BASE_URL` is still accepted as a fallback for compatibility.
+- `ANTHROPIC_API_KEY` is still accepted for compatibility, but `OPENROUTER_API_KEY` is preferred on the default OpenRouter-backed path.
+- If no compatible API key is configured, `/login` and first launch prompt for an OpenRouter key and save it locally.
+- `ant` staging OAuth keeps using the Anthropic staging endpoint and does not route through OpenRouter.
+- `/model` now loads model IDs dynamically from OpenRouter instead of using a static Claude-only list.
+
 ### Computer Use (macOS)
 
 Computer use runs in-process automatically when the `CHICAGO_MCP` flag is enabled. The native addons are resolved from `prebuilds/` relative to the bundled package, or via env var overrides:

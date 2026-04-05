@@ -18,6 +18,7 @@ import { handleMcpjsonServerApprovals } from './services/mcpServerApproval.js';
 import { AppStateProvider } from './state/AppState.js';
 import { onChangeAppState } from './state/onChangeAppState.js';
 import { normalizeApiKeyForConfig } from './utils/authPortable.js';
+import { shouldPromptForOpenRouterApiKey } from './utils/auth.js';
 import { getExternalClaudeMdIncludes, getMemoryFiles, shouldShowClaudeMdExternalIncludesWarning } from './utils/claudemd.js';
 import { checkHasTrustDialogAccepted, getCustomApiKeyStatus, getGlobalConfig, saveGlobalConfig } from './utils/config.js';
 import { updateDeepLinkTerminalPreference } from './utils/deepLink/terminalPreference.js';
@@ -214,6 +215,12 @@ export async function showSetupScreens(root: Root, permissionMode: PermissionMod
         onChangeAppState
       });
     }
+  }
+  if (shouldPromptForOpenRouterApiKey()) {
+    const {
+      OpenRouterApiKeyPrompt
+    } = await import('./components/OpenRouterApiKeyPrompt.js');
+    await showSetupDialog(root, done => <OpenRouterApiKeyPrompt onDone={done} />);
   }
   if ((permissionMode === 'bypassPermissions' || allowDangerouslySkipPermissions) && !hasSkipDangerousModePermissionPrompt()) {
     const {

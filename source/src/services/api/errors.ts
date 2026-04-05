@@ -18,6 +18,7 @@ import {
   getAnthropicApiKeyWithSource,
   getClaudeAIOAuthTokens,
   getOauthAccountInfo,
+  isEnvApiKeySource,
   isClaudeAISubscriber,
 } from 'src/utils/auth.js'
 import {
@@ -155,10 +156,21 @@ export const CREDIT_BALANCE_TOO_LOW_ERROR_MESSAGE = 'Credit balance is too low'
 export const INVALID_API_KEY_ERROR_MESSAGE = 'Not logged in · Please run /login'
 export const INVALID_API_KEY_ERROR_MESSAGE_EXTERNAL =
   'Invalid API key · Fix external API key'
+export function getOrgDisabledErrorMessageForEnvKey(
+  apiKeySource: 'ANTHROPIC_API_KEY' | 'OPENROUTER_API_KEY',
+  hasStoredOAuth: boolean,
+): string {
+  return hasStoredOAuth
+    ? `Your ${apiKeySource} belongs to a disabled organization · Unset the environment variable to use your subscription instead`
+    : `Your ${apiKeySource} belongs to a disabled organization · Update or unset the environment variable`
+}
+
+// Preserve legacy named exports used by UI/build consumers. Runtime can still
+// emit OPENROUTER_API_KEY-specific variants through getOrgDisabledErrorMessageForEnvKey().
 export const ORG_DISABLED_ERROR_MESSAGE_ENV_KEY_WITH_OAUTH =
-  'Your ANTHROPIC_API_KEY belongs to a disabled organization · Unset the environment variable to use your subscription instead'
+  getOrgDisabledErrorMessageForEnvKey('ANTHROPIC_API_KEY', true)
 export const ORG_DISABLED_ERROR_MESSAGE_ENV_KEY =
-  'Your ANTHROPIC_API_KEY belongs to a disabled organization · Update or unset the environment variable'
+  getOrgDisabledErrorMessageForEnvKey('ANTHROPIC_API_KEY', false)
 export const TOKEN_REVOKED_ERROR_MESSAGE =
   'OAuth token revoked · Please run /login'
 export const CCR_AUTH_ERROR_MESSAGE =
@@ -793,8 +805,8 @@ export function getAssistantMessageFromError(
     // the env var. The three guards ensure we only blame the env var when it's
     // actually set and actually on the wire.
     if (
-      source === 'ANTHROPIC_API_KEY' &&
-      process.env.ANTHROPIC_API_KEY &&
+      isEnvApiKeySource(source) &&
+      (process.env.ANTHROPIC_API_KEY || process.env.OPENROUTER_API_KEY) &&
       !isClaudeAISubscriber()
     ) {
       const hasStoredOAuth = getClaudeAIOAuthTokens()?.accessToken != null
@@ -803,9 +815,7 @@ export function getAssistantMessageFromError(
       // is configuration-based (unset the var), so invalid_request is correct.
       return createAssistantAPIErrorMessage({
         error: 'invalid_request',
-        content: hasStoredOAuth
-          ? ORG_DISABLED_ERROR_MESSAGE_ENV_KEY_WITH_OAUTH
-          : ORG_DISABLED_ERROR_MESSAGE_ENV_KEY,
+        content: getOrgDisabledErrorMessageForEnvKey(source, hasStoredOAuth),
       })
     }
   }
@@ -825,7 +835,7 @@ export function getAssistantMessageFromError(
     // Check if the API key is from an external source
     const { source } = getAnthropicApiKeyWithSource()
     const isExternalSource =
-      source === 'ANTHROPIC_API_KEY' || source === 'apiKeyHelper'
+      isEnvApiKeySource(source) || source === 'apiKeyHelper'
 
     return createAssistantAPIErrorMessage({
       error: 'authentication_failed',

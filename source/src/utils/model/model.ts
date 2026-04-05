@@ -18,12 +18,11 @@ import {
   is1mContextDisabled,
   modelSupports1M,
 } from '../context.js'
-import { isEnvTruthy } from '../envUtils.js'
 import { getModelStrings, resolveOverriddenModel } from './modelStrings.js'
 import { formatModelPricing, getOpus46CostTier } from '../modelCost.js'
 import { getSettings_DEPRECATED } from '../settings/settings.js'
 import type { PermissionMode } from '../permissions/PermissionMode.js'
-import { getAPIProvider } from './providers.js'
+import { isOpenRouterCompatibleEndpoint } from './providers.js'
 import { LIGHTNING_BOLT } from '../../constants/figures.js'
 import { isModelAllowed } from './modelAllowlist.js'
 import { type ModelAlias, isModelAlias } from './aliases.js'
@@ -33,7 +32,18 @@ export type ModelShortName = string
 export type ModelName = string
 export type ModelSetting = ModelName | ModelAlias | null
 
+function isTruthyEnvVar(value: string | undefined): boolean {
+  if (!value) {
+    return false
+  }
+
+  return ['1', 'true', 'yes', 'on'].includes(value.toLowerCase().trim())
+}
+
 export function getSmallFastModel(): ModelName {
+  if (isOpenRouterCompatibleEndpoint()) {
+    return getMainLoopModel()
+  }
   return process.env.ANTHROPIC_SMALL_FAST_MODEL || getDefaultHaikuModel()
 }
 
@@ -101,39 +111,33 @@ export function getBestModel(): ModelName {
   return getDefaultOpusModel()
 }
 
-// @[MODEL LAUNCH]: Update the default Opus model (3P providers may lag so keep defaults unchanged).
+// @[MODEL LAUNCH]: Update the default Opus model.
 export function getDefaultOpusModel(): ModelName {
   if (process.env.ANTHROPIC_DEFAULT_OPUS_MODEL) {
     return process.env.ANTHROPIC_DEFAULT_OPUS_MODEL
   }
-  // 3P providers (Bedrock, Vertex, Foundry) — kept as a separate branch
-  // even when values match, since 3P availability lags firstParty and
-  // these will diverge again at the next model launch.
-  if (getAPIProvider() !== 'firstParty') {
-    return getModelStrings().opus46
-  }
   return getModelStrings().opus46
 }
 
-// @[MODEL LAUNCH]: Update the default Sonnet model (3P providers may lag so keep defaults unchanged).
+// @[MODEL LAUNCH]: Update the default Sonnet model.
 export function getDefaultSonnetModel(): ModelName {
-  if (process.env.ANTHROPIC_DEFAULT_SONNET_MODEL) {
-    return process.env.ANTHROPIC_DEFAULT_SONNET_MODEL
+  if (process.env.OPENROUTER_DEFAULT_MODEL && isOpenRouterCompatibleEndpoint()) {
+    return process.env.OPENROUTER_DEFAULT_MODEL
   }
-  // Default to Sonnet 4.5 for 3P since they may not have 4.6 yet
-  if (getAPIProvider() !== 'firstParty') {
-    return getModelStrings().sonnet45
-  }
-  return getModelStrings().sonnet46
+
+  return (
+    process.env.ANTHROPIC_DEFAULT_SONNET_MODEL ||
+    getModelStrings().sonnet46
+  )
 }
 
-// @[MODEL LAUNCH]: Update the default Haiku model (3P providers may lag so keep defaults unchanged).
+// @[MODEL LAUNCH]: Update the default Haiku model.
 export function getDefaultHaikuModel(): ModelName {
   if (process.env.ANTHROPIC_DEFAULT_HAIKU_MODEL) {
     return process.env.ANTHROPIC_DEFAULT_HAIKU_MODEL
   }
 
-  // Haiku 4.5 is available on all platforms (first-party, Foundry, Bedrock, Vertex)
+  // Haiku 4.5 is the built-in default.
   return getModelStrings().haiku45
 }
 
@@ -194,8 +198,7 @@ export function getDefaultMainLoopModelSetting(): ModelName | ModelAlias {
     return getDefaultOpusModel() + (isOpus1mMergeEnabled() ? '[1m]' : '')
   }
 
-  // PAYG (1P and 3P), Enterprise, Team Standard, and Pro get Sonnet as default
-  // Note that PAYG (3P) may default to an older Sonnet model
+  // PAYG, Enterprise, Team Standard, and Pro get Sonnet as default.
   return getDefaultSonnetModel()
 }
 
@@ -270,15 +273,15 @@ export function firstPartyNameToCanonical(name: ModelName): ModelShortName {
 }
 
 /**
- * Maps a full model string to a shorter canonical version that's unified across 1P and 3P providers.
+ * Maps a full model string to a shorter canonical version.
  * For example, 'claude-3-5-haiku-20241022' and 'us.anthropic.claude-3-5-haiku-20241022-v1:0'
  * would both be mapped to 'claude-3-5-haiku'.
  * @param fullModelName The full model name (e.g., 'claude-3-5-haiku-20241022')
  * @returns The short name (e.g., 'claude-3-5-haiku') if found, or the original name if no mapping exists
  */
 export function getCanonicalName(fullModelName: ModelName): ModelShortName {
-  // Resolve overridden model IDs (e.g. Bedrock ARNs) back to canonical names.
-  // resolved is always a 1P-format ID, so firstPartyNameToCanonical can handle it.
+  // Resolve overridden model IDs back to canonical names.
+  // resolved is always a first-party-format ID, so firstPartyNameToCanonical can handle it.
   return firstPartyNameToCanonical(resolveOverriddenModel(fullModelName))
 }
 
@@ -305,18 +308,13 @@ export function renderDefaultModelSetting(
 }
 
 export function getOpus46PricingSuffix(fastMode: boolean): string {
-  if (getAPIProvider() !== 'firstParty') return ''
   const pricing = formatModelPricing(getOpus46CostTier(fastMode))
   const fastModeIndicator = fastMode ? ` (${LIGHTNING_BOLT})` : ''
   return ` ·${fastModeIndicator} ${pricing}`
 }
 
 export function isOpus1mMergeEnabled(): boolean {
-  if (
-    is1mContextDisabled() ||
-    isProSubscriber() ||
-    getAPIProvider() !== 'firstParty'
-  ) {
+  if (is1mContextDisabled() || isProSubscriber()) {
     return false
   }
   // Fail closed when a subscriber's subscription type is unknown. The VS Code
@@ -469,16 +467,9 @@ export function parseUserSpecifiedModel(
     }
   }
 
-  // Opus 4/4.1 are no longer available on the first-party API (same as
-  // Claude.ai) — silently remap to the current Opus default. The 'opus'
-  // alias already resolves to 4.6, so the only users on these explicit
-  // strings pinned them in settings/env/--model/SDK before 4.5 launched.
-  // 3P providers may not yet have 4.6 capacity, so pass through unchanged.
-  if (
-    getAPIProvider() === 'firstParty' &&
-    isLegacyOpusFirstParty(modelString) &&
-    isLegacyModelRemapEnabled()
-  ) {
+  // Opus 4/4.1 are no longer available on the collapsed first-party path, so
+  // silently remap them to the current Opus default.
+  if (isLegacyOpusFirstParty(modelString) && isLegacyModelRemapEnabled()) {
     return getDefaultOpusModel() + (has1mTag ? '[1m]' : '')
   }
 
@@ -550,17 +541,12 @@ function isLegacyOpusFirstParty(model: string): boolean {
  * Opt-out for the legacy Opus 4.0/4.1 → current Opus remap.
  */
 export function isLegacyModelRemapEnabled(): boolean {
-  return !isEnvTruthy(process.env.CLAUDE_CODE_DISABLE_LEGACY_MODEL_REMAP)
+  return !isTruthyEnvVar(process.env.CLAUDE_CODE_DISABLE_LEGACY_MODEL_REMAP)
 }
 
 export function modelDisplayString(model: ModelSetting): string {
   if (model === null) {
-    if (process.env.USER_TYPE === 'ant') {
-      return `Default for Ants (${renderDefaultModelSetting(getDefaultMainLoopModelSetting())})`
-    } else if (isClaudeAISubscriber()) {
-      return `Default (${getClaudeAiUserDefaultModelDescription()})`
-    }
-    return `Default (${getDefaultMainLoopModel()})`
+    return 'Default model'
   }
   const resolvedModel = parseUserSpecifiedModel(model)
   return model === resolvedModel ? resolvedModel : `${model} (${resolvedModel})`
@@ -568,11 +554,6 @@ export function modelDisplayString(model: ModelSetting): string {
 
 // @[MODEL LAUNCH]: Add a marketing name mapping for the new model below.
 export function getMarketingNameForModel(modelId: string): string | undefined {
-  if (getAPIProvider() === 'foundry') {
-    // deployment ID is user-defined in Foundry, so it may have no relation to the actual model
-    return undefined
-  }
-
   const has1m = modelId.toLowerCase().includes('[1m]')
   const canonical = getCanonicalName(modelId)
 
